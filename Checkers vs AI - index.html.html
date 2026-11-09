@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>跳棋 Checkers vs AI</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0d0d1a;--gold:#f5a623;--teal:#00c8f0;--red:#e94560;--green:#06d6a0;
+  --text:#e0e0f0;--text2:#7070a0;
+}
+body{
+  background:var(--bg);
+  background-image:radial-gradient(ellipse at 20% 0%,#1a1040 0%,transparent 55%),
+                   radial-gradient(ellipse at 80% 100%,#0a1f35 0%,transparent 55%);
+  color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;
+  min-height:100dvh;display:flex;flex-direction:column;align-items:center;
+  padding:0 8px 16px;overflow-x:hidden;
+}
+header{width:100%;max-width:580px;display:flex;align-items:center;justify-content:space-between;padding:12px 0 8px;flex-wrap:wrap;gap:8px;}
+.game-title{font-size:20px;font-weight:800;letter-spacing:2px;color:var(--gold);text-shadow:0 0 20px rgba(245,166,35,.4);}
+.game-title sub{font-size:10px;font-weight:400;color:var(--text2);letter-spacing:1px;margin-left:5px;vertical-align:middle;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 15px;font-size:12.5px;font-weight:600;letter-spacing:.4px;border-radius:10px;cursor:pointer;transition:all .17s ease;border:1px solid #28285a;color:#c0c0e8;background:linear-gradient(155deg,#1e1e40,#111128);box-shadow:0 4px 12px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.05),inset 0 -1px 0 rgba(0,0,0,.4);}
+.btn:hover{border-color:rgba(0,200,240,.4);color:var(--teal);transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.5),0 0 10px rgba(0,200,240,.1);}
+.btn:active{transform:translateY(1px);}
+.btn-gold{border-color:rgba(245,166,35,.4);color:var(--gold);}
+.btn-gold:hover{border-color:var(--gold);box-shadow:0 6px 18px rgba(0,0,0,.5),0 0 12px rgba(245,166,35,.15);}
+.btn-red{background:linear-gradient(135deg,#e94560,#c02b48 55%,#8e1830);border:none;color:#fff;box-shadow:0 4px 20px rgba(233,69,96,.4),inset 0 1px 0 rgba(255,255,255,.12),inset 0 -2px 0 rgba(0,0,0,.3);}
+.btn-red:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(233,69,96,.55);}
+
+/* ── STATUS BAR ── */
+.status-bar{width:100%;max-width:580px;display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+.player-side{display:flex;align-items:center;gap:9px;}
+.piece-swatch{width:30px;height:30px;border-radius:50%;border:2px solid;}
+.piece-swatch.red{background:radial-gradient(circle at 35% 35%,#ff7090,#c02040);border-color:#ff4060;box-shadow:0 2px 8px rgba(233,69,96,.4);}
+.piece-swatch.blue{background:radial-gradient(circle at 35% 35%,#60c0ff,#1060c0);border-color:#40a0ff;box-shadow:0 2px 8px rgba(0,150,255,.4);}
+.pname{font-size:13px;font-weight:700;}
+.pcnt{font-size:11px;color:var(--text2);}
+
+/* ── TURN INDICATOR ── */
+.turn-indicator{width:100%;max-width:580px;display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:4px;}
+.turn-pill{padding:7px 20px;border-radius:30px;font-size:13px;font-weight:700;letter-spacing:.5px;transition:all .3s ease;}
+.turn-pill.player{background:rgba(245,166,35,.14);border:1.5px solid rgba(245,166,35,.5);color:var(--gold);box-shadow:0 0 16px rgba(245,166,35,.12);}
+.turn-pill.ai{background:rgba(0,200,240,.1);border:1.5px solid rgba(0,200,240,.35);color:var(--teal);box-shadow:0 0 16px rgba(0,200,240,.1);}
+.turn-pill.gameover{background:rgba(255,255,255,.05);border:1.5px solid #2a2a4a;color:var(--text2);}
+.turn-arrow{font-size:18px;animation:bob .8s infinite ease-in-out;}
+@keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-4px);}}
+
+/* ── THINKING BAR ── */
+.think-row{width:100%;max-width:580px;height:3px;background:#111130;border-radius:2px;overflow:hidden;margin-bottom:5px;}
+.think-bar{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--teal),#0860a0);width:0%;transition:width .08s linear;}
+
+/* ── BOARD ── */
+.board-wrap{position:relative;user-select:none;}
+#board{display:block;border-radius:10px;cursor:pointer;box-shadow:0 8px 40px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.04);}
+
+/* ── WIN OVERLAY ── */
+.win-overlay{position:absolute;inset:0;background:rgba(5,5,20,.9);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:10px;gap:12px;opacity:0;pointer-events:none;transition:opacity .35s;backdrop-filter:blur(6px);}
+.win-overlay.show{opacity:1;pointer-events:all;}
+.win-emoji{font-size:52px;line-height:1;}
+.win-ttl{font-size:24px;font-weight:800;letter-spacing:1px;}
+.win-ttl.pw{color:var(--gold);text-shadow:0 0 24px rgba(245,166,35,.5);}
+.win-ttl.aw{color:var(--teal);}
+.win-sub{font-size:13px;color:var(--text2);}
+.win-btns{display:flex;gap:10px;margin-top:4px;}
+
+/* ── LOG ── */
+.move-log{width:100%;max-width:580px;background:linear-gradient(145deg,#111130,#0a0a1e);border:1px solid #1e1e44;border-radius:10px;padding:9px 14px;font-size:12px;color:var(--text2);line-height:1.6;min-height:36px;}
+
+/* ── CTRL ROW ── */
+.ctrl-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:7px 0;}
+
+/* ── MODAL ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,15,.9);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(10px);}
+.modal-bg.hidden{display:none;}
+.modal{background:linear-gradient(160deg,#141432,#0a0a1e);border:1px solid #252560;border-radius:20px;padding:26px 22px 20px;width:min(400px,96vw);box-shadow:0 24px 64px rgba(0,0,0,.75);}
+.modal-ttl{font-size:17px;font-weight:800;color:var(--gold);letter-spacing:.8px;margin-bottom:3px;}
+.modal-sub{font-size:12px;color:var(--text2);margin-bottom:16px;}
+.ai-cards{display:grid;gap:8px;}
+.ai-card{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;cursor:pointer;border:1px solid #252550;background:linear-gradient(145deg,#1a1a38,#101028);box-shadow:0 3px 12px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.04);transition:all .18s ease;}
+.ai-card:hover{border-color:rgba(0,200,240,.35);transform:translateX(4px);box-shadow:0 5px 18px rgba(0,0,0,.45);}
+.ai-card.selected{border-color:var(--gold);background:linear-gradient(145deg,#221e38,#141025);box-shadow:0 0 0 1px rgba(245,166,35,.25),0 5px 20px rgba(245,166,35,.14);}
+.ai-ava{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0;}
+.ai-name{font-size:13.5px;font-weight:700;color:var(--text);margin-bottom:2px;}
+.ai-desc{font-size:11px;color:var(--text2);line-height:1.4;}
+.ai-stars{font-size:12px;margin-top:3px;letter-spacing:.8px;}
+.modal-btns{display:flex;gap:9px;margin-top:16px;}
+.btn-modal-start{flex:1;padding:12px;font-size:14px;font-weight:700;letter-spacing:.5px;border-radius:11px;cursor:pointer;color:#fff;border:none;background:linear-gradient(135deg,var(--red),#c02b48 55%,#8e1830);box-shadow:0 4px 20px rgba(233,69,96,.4),inset 0 1px 0 rgba(255,255,255,.12),inset 0 -2px 0 rgba(0,0,0,.3);transition:all .18s;}
+.btn-modal-start:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(233,69,96,.55);}
+.btn-modal-cancel{padding:12px 18px;font-size:13px;font-weight:500;border-radius:11px;cursor:pointer;color:#8080c0;background:rgba(255,255,255,.03);border:1px solid #252550;transition:all .18s;}
+.btn-modal-cancel:hover{border-color:rgba(0,200,240,.35);color:var(--teal);}
+
+/* ── HOW TO PLAY ── */
+.howto{width:100%;max-width:580px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;padding:6px 0 2px;}
+.howto-step{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);}
+.howto-num{width:18px;height:18px;border-radius:50%;background:rgba(245,166,35,.15);border:1px solid rgba(245,166,35,.3);color:var(--gold);font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<!-- AI Modal -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <div class="modal-ttl">🎯 選擇 AI 對手</div>
+    <div class="modal-sub">選一個難度，紅方（你）先行！</div>
+    <div class="ai-cards" id="aiCards"></div>
+    <div class="modal-btns">
+      <button class="btn-modal-cancel" id="cancelBtn" onclick="closeModal()">取消</button>
+      <button class="btn-modal-start" onclick="confirmAI()">開始對局 ▶</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <div class="game-title">跳棋 <sub>CHECKERS</sub></div>
+  <div style="display:flex;gap:7px;">
+    <button class="btn btn-gold" onclick="showModal()">🤖 換對手</button>
+    <button class="btn" onclick="undoMove()">↩ 悔棋</button>
+    <button class="btn" onclick="newGame()">⟳ 新局</button>
+  </div>
+</header>
+
+<!-- Status -->
+<div class="status-bar">
+  <div class="player-side">
+    <div class="piece-swatch red"></div>
+    <div>
+      <div class="pname" style="color:#ff6080">👤 你（紅方）</div>
+      <div class="pcnt" id="redCnt">12 棋子</div>
+    </div>
+  </div>
+  <div class="player-side" style="flex-direction:row-reverse;text-align:right;">
+    <div class="piece-swatch blue"></div>
+    <div>
+      <div class="pname" style="color:#60a8ff" id="aiNameLbl">🤖 AI</div>
+      <div class="pcnt" id="blueCnt">12 棋子</div>
+    </div>
+  </div>
+</div>
+
+<!-- Turn indicator -->
+<div class="turn-indicator">
+  <span id="turnArrow" class="turn-arrow">👆</span>
+  <div class="turn-pill player" id="turnPill">點選你的紅色棋子開始！</div>
+</div>
+
+<div class="think-row"><div class="think-bar" id="thinkBar"></div></div>
+
+<div class="board-wrap">
+  <canvas id="board"></canvas>
+  <div class="win-overlay" id="winOverlay">
+    <div class="win-emoji" id="winEmoji">🏆</div>
+    <div class="win-ttl pw" id="winTtl">玩家獲勝！</div>
+    <div class="win-sub" id="winSub"></div>
+    <div class="win-btns">
+      <button class="btn btn-red" onclick="newGame()">再來一局</button>
+      <button class="btn btn-gold" onclick="showModal()">換對手</button>
+    </div>
+  </div>
+</div>
+
+<!-- How to play -->
+<div class="howto">
+  <div class="howto-step"><div class="howto-num">1</div>點選紅棋</div>
+  <div class="howto-step"><div class="howto-num">2</div>點綠點移動</div>
+  <div class="howto-step"><div class="howto-num">3</div>AI 自動回應</div>
+  <div class="howto-step"><div class="howto-num">★</div>到底升王♛</div>
+</div>
+
+<div class="move-log" id="moveLog">🎮 選好 AI 對手後開始，紅方（你）先行！</div>
+
+<script>
+// ════════ CONSTANTS ════════
+const EMPTY=0,RED=1,BLUE=2,RED_KING=3,BLUE_KING=4;
+
+const AI_LEVELS=[
+  {id:'sleepy', name:'瞌睡蟲',  emoji:'😴',desc:'走法隨機，幾乎不思考，常送棋',    stars:'★☆☆☆☆',color:'#8060a0',depth:1,randomness:.90,blunder:.50,thinkMs:600},
+  {id:'rookie', name:'新手小明',emoji:'🐣',desc:'稍微避免被吃，但策略薄弱',          stars:'★★☆☆☆',color:'#50a070',depth:1,randomness:.55,blunder:.25,thinkMs:800},
+  {id:'stable', name:'穩健棋手',emoji:'🧑',desc:'考慮3步，有基本攻防觀念',          stars:'★★★☆☆',color:'#4080c0',depth:3,randomness:.12,blunder:.04,thinkMs:1000},
+  {id:'smart',  name:'老練棋士',emoji:'🦊',desc:'考慮5步，善用王棋，積極進攻',      stars:'★★★★☆',color:'#c06020',depth:5,randomness:.03,blunder:.008,thinkMs:1400},
+  {id:'master', name:'棋道大師',emoji:'🤖',desc:'極深搜索，幾乎完美，接近無敵',   stars:'★★★★★',color:'#e94560',depth:7,randomness:.004,blunder:0,thinkMs:1800},
+];
+
+let selectedAI=AI_LEVELS[2];
+
+// ════════ GAME STATE ════════
+let board=[];
+let currentTurn=RED;
+let selectedPiece=null;
+let validMoves=[];
+let gameOver=false;
+let moveHistory=[];
+let moveCount=0;
+let aiThinking=false;
+let multiJumpFrom=null;
+
+const canvas=document.getElementById('board');
+const ctx=canvas.getContext('2d');
+
+// ════════ BOARD SIZING ════════
+function C(){ return Math.floor(Math.min(window.innerWidth-20,540,window.innerHeight*.68)/8); }
+function setupCanvas(){
+  const sz=C()*8;
+  canvas.width=canvas.height=sz;
+}
+
+// ════════ INIT ════════
+function initBoard(){
+  board=Array.from({length:8},()=>Array(8).fill(EMPTY));
+  for(let r=0;r<3;r++) for(let c=0;c<8;c++) if((r+c)%2===1) board[r][c]=BLUE;
+  for(let r=5;r<8;r++) for(let c=0;c<8;c++) if((r+c)%2===1) board[r][c]=RED;
+}
+
+function newGame(){
+  initBoard();
+  currentTurn=RED; selectedPiece=null; validMoves=[];
+  gameOver=false; moveHistory=[]; moveCount=0;
+  aiThinking=false; multiJumpFrom=null;
+  document.getElementById('winOverlay').classList.remove('show');
+  document.getElementById('thinkBar').style.width='0%';
+  updateStatus();
+  log('🎮 新局！點選紅色棋子，然後點綠點移動。');
+  draw();
+}
+
+// ════════ DRAW ════════
+function draw(){
+  const cell=C();
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  for(let r=0;r<8;r++){
+    for(let c=0;c<8;c++){
+      const dark=(r+c)%2===1;
+      // cell
+      ctx.fillStyle=dark?'#252545':'#141420';
+      ctx.fillRect(c*cell,r*cell,cell,cell);
+      if(dark){
+        // subtle texture
+        ctx.fillStyle='rgba(255,255,255,.018)';
+        ctx.fillRect(c*cell,r*cell,cell,2);
+      }
+
+      // selected highlight
+      if(selectedPiece&&selectedPiece.r===r&&selectedPiece.c===c){
+        ctx.fillStyle='rgba(245,166,35,.22)';
+        ctx.fillRect(c*cell,r*cell,cell,cell);
+        ctx.strokeStyle='rgba(245,166,35,.85)';
+        ctx.lineWidth=2.5;
+        ctx.strokeRect(c*cell+1.25,r*cell+1.25,cell-2.5,cell-2.5);
+      }
+      // multi-jump highlight
+      if(multiJumpFrom&&multiJumpFrom.r===r&&multiJumpFrom.c===c){
+        ctx.fillStyle='rgba(245,166,35,.3)';
+        ctx.fillRect(c*cell,r*cell,cell,cell);
+      }
+
+      // valid move dots
+      if(validMoves.some(m=>m.to.r===r&&m.to.c===c)){
+        ctx.fillStyle='rgba(6,214,160,.18)';
+        ctx.fillRect(c*cell,r*cell,cell,cell);
+        ctx.fillStyle='rgba(6,214,160,.75)';
+        ctx.beginPath();
+        ctx.arc(c*cell+cell/2,r*cell+cell/2,cell*.16,0,Math.PI*2);
+        ctx.fill();
+        // ring
+        ctx.strokeStyle='rgba(6,214,160,.4)';
+        ctx.lineWidth=1;
+        ctx.beginPath();
+        ctx.arc(c*cell+cell/2,r*cell+cell/2,cell*.28,0,Math.PI*2);
+        ctx.stroke();
+      }
+
+      const p=board[r][c];
+      if(p) drawPiece(r,c,p,cell);
+    }
+  }
+
+  // board border
+  ctx.strokeStyle='rgba(255,255,255,.05)';
+  ctx.lineWidth=1;
+  ctx.strokeRect(.5,.5,canvas.width-1,canvas.height-1);
+}
+
+function drawPiece(r,c,p,cell){
+  const cx=c*cell+cell/2, cy=r*cell+cell/2;
+  const isRed=p===RED||p===RED_KING;
+  const isKing=p===RED_KING||p===BLUE_KING;
+  const rad=cell*.38;
+
+  // drop shadow
+  ctx.fillStyle='rgba(0,0,0,.38)';
+  ctx.beginPath();ctx.ellipse(cx+2,cy+4,rad*.88,rad*.35,0,0,Math.PI*2);ctx.fill();
+
+  // outer glow ring
+  ctx.fillStyle=isRed?'rgba(220,30,60,.35)':'rgba(0,100,220,.35)';
+  ctx.beginPath();ctx.arc(cx,cy,rad+3.5,0,Math.PI*2);ctx.fill();
+
+  // main body
+  const g=ctx.createRadialGradient(cx-rad*.3,cy-rad*.32,rad*.04,cx,cy,rad);
+  if(isRed){
+    g.addColorStop(0,'#ff7898');
+    g.addColorStop(.45,'#e02050');
+    g.addColorStop(1,'#8a0028');
+  } else {
+    g.addColorStop(0,'#80d0ff');
+    g.addColorStop(.45,'#1878e8');
+    g.addColorStop(1,'#003298');
+  }
+  ctx.fillStyle=g;
+  ctx.beginPath();ctx.arc(cx,cy,rad,0,Math.PI*2);ctx.fill();
+
+  // top shine
+  const sg=ctx.createRadialGradient(cx-rad*.22,cy-rad*.28,0,cx-rad*.05,cy-rad*.15,rad*.7);
+  sg.addColorStop(0,'rgba(255,255,255,.48)');
+  sg.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=sg;
+  ctx.beginPath();ctx.arc(cx,cy,rad,0,Math.PI*2);ctx.fill();
+
+  // rim
+  ctx.strokeStyle=isRed?'rgba(255,130,150,.55)':'rgba(100,190,255,.55)';
+  ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(cx,cy,rad,0,Math.PI*2);ctx.stroke();
+
+  // king crown
+  if(isKing){
+    ctx.fillStyle='rgba(255,225,80,.95)';
+    ctx.font=`bold ${Math.round(cell*.3)}px sans-serif`;
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.shadowColor='rgba(0,0,0,.5)';ctx.shadowBlur=3;
+    ctx.fillText('♛',cx,cy+1);
+    ctx.shadowBlur=0;
+  }
+}
+
+// ════════ MOVE LOGIC ════════
+function movesFor(b,r,c,capturesOnly=false){
+  const p=b[r][c]; if(!p) return [];
+  const isRed=p===RED||p===RED_KING, isKing=p===RED_KING||p===BLUE_KING;
+  const dirs=[];
+  if(isRed||isKing) dirs.push([-1,-1],[-1,1]);
+  if(!isRed||isKing) dirs.push([1,-1],[1,1]);
+  const caps=[],steps=[];
+  for(const[dr,dc]of dirs){
+    const nr=r+dr,nc=c+dc;
+    if(nr<0||nr>7||nc<0||nc>7) continue;
+    const nb=b[nr][nc];
+    if(!nb){
+      if(!capturesOnly) steps.push({from:{r,c},to:{r:nr,c:nc},captured:null});
+    } else {
+      const enemy=(isRed&&(nb===BLUE||nb===BLUE_KING))||(!isRed&&(nb===RED||nb===RED_KING));
+      if(enemy){
+        const jr=r+dr*2,jc=c+dc*2;
+        if(jr>=0&&jr<8&&jc>=0&&jc<8&&!b[jr][jc])
+          caps.push({from:{r,c},to:{r:jr,c:jc},captured:{r:nr,c:nc}});
+      }
+    }
+  }
+  return caps.length?caps:(capturesOnly?[]:steps);
+}
+
+function allMoves(b,turn){
+  const caps=[],steps=[];
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+    const p=b[r][c]; if(!p) continue;
+    const isRed=p===RED||p===RED_KING;
+    if((turn===RED&&!isRed)||(turn===BLUE&&isRed)) continue;
+    for(const m of movesFor(b,r,c)){
+      if(m.captured) caps.push(m); else steps.push(m);
+    }
+  }
+  return caps.length?caps:steps;
+}
+
+function applyMove(b,mv){
+  const nb=b.map(r=>[...r]);
+  const p=nb[mv.from.r][mv.from.c];
+  nb[mv.to.r][mv.to.c]=p;
+  nb[mv.from.r][mv.from.c]=EMPTY;
+  if(mv.captured) nb[mv.captured.r][mv.captured.c]=EMPTY;
+  if(p===RED&&mv.to.r===0) nb[mv.to.r][mv.to.c]=RED_KING;
+  if(p===BLUE&&mv.to.r===7) nb[mv.to.r][mv.to.c]=BLUE_KING;
+  return nb;
+}
+
+function winner(b){
+  let r=0,bl=0;
+  for(let row=0;row<8;row++) for(let col=0;col<8;col++){
+    const p=b[row][col];
+    if(p===RED||p===RED_KING) r++;
+    else if(p===BLUE||p===BLUE_KING) bl++;
+  }
+  if(!r) return BLUE; if(!bl) return RED;
+  if(!allMoves(b,RED).length) return BLUE;
+  if(!allMoves(b,BLUE).length) return RED;
+  return null;
+}
+
+function countAll(b){
+  let r=0,bl=0,rk=0,bk=0;
+  for(let row=0;row<8;row++) for(let col=0;col<8;col++){
+    const p=b[row][col];
+    if(p===RED) r++; else if(p===BLUE) bl++;
+    else if(p===RED_KING) rk++; else if(p===BLUE_KING) bk++;
+  }
+  return{r,bl,rk,bk};
+}
+
+// ════════ PLAYER INPUT ════════
+canvas.addEventListener('click',e=>{
+  if(currentTurn!==RED||gameOver||aiThinking) return;
+  const cell=C();
+  const rect=canvas.getBoundingClientRect();
+  const scaleX=canvas.width/rect.width, scaleY=canvas.height/rect.height;
+  const mx=(e.clientX-rect.left)*scaleX, my=(e.clientY-rect.top)*scaleY;
+  const c=Math.floor(mx/cell), r=Math.floor(my/cell);
+  if(r<0||r>7||c<0||c>7) return;
+  handleClick(r,c);
+});
+
+// touch support
+canvas.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(currentTurn!==RED||gameOver||aiThinking) return;
+  const cell=C();
+  const rect=canvas.getBoundingClientRect();
+  const scaleX=canvas.width/rect.width, scaleY=canvas.height/rect.height;
+  const t=e.changedTouches[0];
+  const mx=(t.clientX-rect.left)*scaleX, my=(t.clientY-rect.top)*scaleY;
+  const c=Math.floor(mx/cell), r=Math.floor(my/cell);
+  if(r<0||r>7||c<0||c>7) return;
+  handleClick(r,c);
+},{passive:false});
+
+function handleClick(r,c){
+  // clicking a valid destination
+  if(selectedPiece){
+    const mv=validMoves.find(m=>m.to.r===r&&m.to.c===c);
+    if(mv){ doPlayerMove(mv); return; }
+  }
+  // clicking own piece
+  const p=board[r][c];
+  if(p===RED||p===RED_KING){
+    if(multiJumpFrom&&(r!==multiJumpFrom.r||c!==multiJumpFrom.c)){
+      log('⚠️ 必須用黃色棋子繼續跳吃！');
+      return;
+    }
+    // must capture if captures available
+    const capMvs=allMoves(board,RED).filter(m=>m.captured);
+    let avail=movesFor(board,r,c);
+    if(capMvs.length) avail=avail.filter(m=>m.captured);
+    if(!avail.length){
+      if(capMvs.length) log('⚠️ 必須吃子！請點有吃子機會的棋子');
+      else log('⚠️ 此棋子無法移動');
+    }
+    selectedPiece={r,c};
+    validMoves=avail;
+    draw();
+  } else {
+    selectedPiece=null; validMoves=[];
+    draw();
+  }
+}
+
+function doPlayerMove(mv){
+  moveHistory.push(board.map(r=>[...r]));
+  board=applyMove(board,mv);
+  moveCount++;
+  log(`🔴 你移動：${mv.captured?'吃子 ':''}(${mv.from.r},${mv.from.c})→(${mv.to.r},${mv.to.c})`);
+
+  // multi-jump?
+  if(mv.captured){
+    const further=movesFor(board,mv.to.r,mv.to.c,true);
+    if(further.length){
+      multiJumpFrom=mv.to;
+      selectedPiece=mv.to;
+      validMoves=further;
+      draw(); updateStatus();
+      log('🔴 可以繼續跳吃！點綠點繼續。');
+      return;
+    }
+  }
+  finishPlayerTurn();
+}
+
+function finishPlayerTurn(){
+  multiJumpFrom=null; selectedPiece=null; validMoves=[];
+  const w=winner(board);
+  if(w){ endGame(w); return; }
+  currentTurn=BLUE;
+  updateStatus(); draw();
+  scheduleAI();
+}
+
+function undoMove(){
+  if(aiThinking||!moveHistory.length) return;
+  // pop at least 2 (player + AI), or just 1 if only 1 recorded
+  const pops=Math.min(2,moveHistory.length);
+  for(let i=0;i<pops;i++) board=moveHistory.pop();
+  currentTurn=RED; selectedPiece=null; validMoves=[];
+  multiJumpFrom=null; gameOver=false;
+  document.getElementById('winOverlay').classList.remove('show');
+  updateStatus(); draw();
+  log('↩️ 悔棋！重新想想。');
+}
+
+// ════════ AI ════════
+function evaluate(b){
+  let s=0;
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+    const p=b[r][c];
+    // positional value: advance + center control
+    const centerBonus=([3,4].includes(c)?.1:0)+([2,5].includes(c)?.05:0);
+    if(p===BLUE)   s+=3+(7-r)*.12+centerBonus;
+    else if(p===BLUE_KING) s+=5.5+centerBonus;
+    else if(p===RED)   s-=3+r*.12+centerBonus;
+    else if(p===RED_KING) s-=5.5+centerBonus;
+  }
+  return s;
+}
+
+function minimax(b,depth,alpha,beta,max){
+  const w=winner(b);
+  if(w===BLUE) return 1000+depth;
+  if(w===RED)  return-1000-depth;
+  if(depth===0) return evaluate(b);
+  const mvs=allMoves(b,max?BLUE:RED);
+  if(!mvs.length) return max?-900:900;
+  if(max){
+    let best=-Infinity;
+    for(const m of mvs){ best=Math.max(best,minimax(applyMove(b,m),depth-1,alpha,beta,false)); alpha=Math.max(alpha,best); if(beta<=alpha)break; }
+    return best;
+  } else {
+    let best=Infinity;
+    for(const m of mvs){ best=Math.min(best,minimax(applyMove(b,m),depth-1,alpha,beta,true)); beta=Math.min(beta,best); if(beta<=alpha)break; }
+    return best;
+  }
+}
+
+function pickMove(b,ai){
+  const mvs=allMoves(b,BLUE);
+  if(!mvs.length) return null;
+  if(Math.random()<ai.randomness) return mvs[Math.floor(Math.random()*mvs.length)];
+  if(Math.random()<ai.blunder){
+    const nc=mvs.filter(m=>!m.captured);
+    if(nc.length) return nc[Math.floor(Math.random()*nc.length)];
+  }
+  let best=-Infinity,bm=[];
+  for(const m of mvs){
+    const sc=minimax(applyMove(b,m),ai.depth-1,-Infinity,Infinity,false);
+    if(sc>best){best=sc;bm=[m];} else if(sc===best) bm.push(m);
+  }
+  return bm[Math.floor(Math.random()*bm.length)];
+}
+
+function scheduleAI(){
+  aiThinking=true;
+  const ai=selectedAI;
+  let pct=0;
+  const bi=setInterval(()=>{pct=Math.min(pct+3,95);document.getElementById('thinkBar').style.width=pct+'%';},ai.thinkMs/35);
+  setTimeout(()=>{
+    clearInterval(bi);
+    document.getElementById('thinkBar').style.width='100%';
+    setTimeout(()=>document.getElementById('thinkBar').style.width='0%',300);
+    runAI();
+  },ai.thinkMs);
+}
+
+function runAI(){
+  const mv=pickMove(board,selectedAI);
+  aiThinking=false;
+  if(!mv){ endGame(RED); return; }
+  moveHistory.push(board.map(r=>[...r]));
+  board=applyMove(board,mv);
+  moveCount++;
+  log(`🔵 ${selectedAI.name}移動：${mv.captured?'吃子 ':''}(${mv.from.r},${mv.from.c})→(${mv.to.r},${mv.to.c})`);
+
+  // AI multi-jump
+  let cur=mv;
+  while(cur.captured){
+    const further=movesFor(board,cur.to.r,cur.to.c,true);
+    if(!further.length) break;
+    // greedy pick for AI continuation
+    let best=-Infinity,bm=null;
+    for(const fm of further){ const sc=evaluate(applyMove(board,fm)); if(sc>best){best=sc;bm=fm;} }
+    board=applyMove(board,bm);
+    log(`   ↪ AI 繼續跳：(${bm.to.r},${bm.to.c}) 吃子！`);
+    cur=bm;
+  }
+
+  const w=winner(board);
+  if(w){ endGame(w); return; }
+  currentTurn=RED;
+  updateStatus(); draw();
+}
+
+// ════════ END & STATUS ════════
+function endGame(w){
+  gameOver=true; aiThinking=false;
+  const isP=w===RED;
+  document.getElementById('winEmoji').textContent=isP?'🏆':'🤖';
+  const wt=document.getElementById('winTtl');
+  wt.className='win-ttl '+(isP?'pw':'aw');
+  wt.textContent=isP?'你贏了！':'AI 獲勝！';
+  document.getElementById('winSub').textContent=`共 ${moveCount} 步 · ${selectedAI.name}`;
+  document.getElementById('winOverlay').classList.add('show');
+  log(isP?`🏆 恭喜你贏了！共${moveCount}步。`:`🤖 ${selectedAI.name}獲勝！共${moveCount}步。再試一次！`);
+  updateStatus(); draw();
+}
+
+function updateStatus(){
+  const cnt=countAll(board);
+  document.getElementById('redCnt').textContent=`${cnt.r}棋子${cnt.rk?` +${cnt.rk}王`:''}`;
+  document.getElementById('blueCnt').textContent=`${cnt.bl}棋子${cnt.bk?` +${cnt.bk}王`:''}`;
+  const pill=document.getElementById('turnPill');
+  const arrow=document.getElementById('turnArrow');
+  if(gameOver){
+    pill.className='turn-pill gameover'; pill.textContent='對局結束'; arrow.style.display='none';
+  } else if(currentTurn===RED){
+    pill.className='turn-pill player';
+    pill.textContent=multiJumpFrom?'繼續跳吃！點綠點':'👆 你的回合，點紅棋移動';
+    arrow.style.display=''; arrow.textContent='👆';
+  } else {
+    pill.className='turn-pill ai';
+    pill.textContent=`${selectedAI.emoji} ${selectedAI.name} 思考中…`;
+    arrow.style.display=''; arrow.textContent='⏳';
+  }
+}
+
+function log(msg){ document.getElementById('moveLog').textContent=msg; }
+
+// ════════ MODAL ════════
+function buildModal(){
+  const c=document.getElementById('aiCards'); c.innerHTML='';
+  AI_LEVELS.forEach(ai=>{
+    const d=document.createElement('div');
+    d.className='ai-card'+(ai===selectedAI?' selected':'');
+    d.innerHTML=`<div class="ai-ava" style="background:${ai.color}1a;border:1.5px solid ${ai.color}50;">${ai.emoji}</div>
+      <div><div class="ai-name">${ai.name}</div><div class="ai-desc">${ai.desc}</div>
+      <div class="ai-stars" style="color:${ai.color}">${ai.stars}</div></div>`;
+    d.onclick=()=>{ selectedAI=ai; document.querySelectorAll('.ai-card').forEach(x=>x.classList.remove('selected')); d.classList.add('selected'); };
+    c.appendChild(d);
+  });
+}
+function showModal(){ buildModal(); document.getElementById('modalBg').classList.remove('hidden'); document.getElementById('cancelBtn').style.display=moveCount>0?'':'none'; }
+function closeModal(){ document.getElementById('modalBg').classList.add('hidden'); }
+function confirmAI(){
+  closeModal();
+  document.getElementById('aiNameLbl').textContent=selectedAI.emoji+' '+selectedAI.name;
+  newGame();
+}
+
+window.addEventListener('resize',()=>{ setupCanvas(); draw(); });
+
+// ════════ BOOT ════════
+setupCanvas();
+buildModal();
+showModal();
+initBoard();
+updateStatus();
+draw();
+</script>
+</body>
+</html>
